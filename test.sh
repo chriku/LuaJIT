@@ -1,5 +1,5 @@
 set -e
-make -j8
+make CCDEBUG=-g -j8
 ./src/luajit test.lua
 echo =====
 ./src/luajit test2.lua

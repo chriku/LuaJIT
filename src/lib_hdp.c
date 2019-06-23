@@ -85,12 +85,7 @@ void serialize_gc(lua_State*L,GCobj*val,int mt) {
         //incr_top(L);
         //lua_setfield(L,-2,"func");
       } else if(val->fn.c.ffid==FF_coroutine_yield) {
-        lua_pushliteral(L,"func");
-        lua_setfield(L,-2,"type");
-        lua_pushliteral(L,"yield");
-        lua_setfield(L,-2,"special");
-      } else {
-        lua_pushliteral(L,"func");
+        lua_pushliteral(L,"cfunc");
         lua_setfield(L,-2,"type");
         lua_pushinteger(L,val->fn.c.ffid);
         lua_setfield(L,-2,"ftype");
@@ -174,6 +169,19 @@ LJLIB_CF(hdp_persist)
   TValue* val=lj_lib_checkany(L,1);
   lua_newtable(L);
   int mt=lua_gettop(L);
+  if((mt>2)&&(lua_type(L,2)==LUA_TTABLE)) {
+    lua_pushnil(L);
+    while (lua_next(L,2) != 0) {
+      lua_pushlightuserdata(L,gcV(L->top-2));
+      lua_newtable(L);
+      lua_pushvalue(L,-3);
+      lua_setfield(L,-2,"data");
+      lua_pushliteral(L,"other");
+      lua_setfield(L,-2,"type");
+      lua_settable(L,mt);
+      lua_pop(L, 1);
+    }
+  }
   serialize(L,val,mt);
   lua_remove(L,mt);
   return 1;
@@ -193,7 +201,6 @@ const char * reader(lua_State*L,void*data,size_t*size) {
 
 #define SAVE   lua_pushvalue(L,-1); lua_pushlstring(L,(const char*)val,sizeof(TValue)); lua_settable(L,mt);
 
-
 void unserialize(lua_State*L,TValue* val,int mt);
 void unserialize(lua_State*L,TValue* val,int mt) {
   lua_pushvalue(L,-1);
@@ -205,7 +212,7 @@ void unserialize(lua_State*L,TValue* val,int mt) {
   }
   lua_pop(L,1);
   lua_getfield(L,-1,"type");
-  const char* const args[]={"simple","func","proto","upvalue","thread","string","table",NULL};
+  const char* const args[]={"simple","func","proto","upvalue","thread","string","table","other",NULL};
   int opt=luaL_checkoption(L,-1,NULL,args);
   lua_pop(L,1);
   switch(opt) {
@@ -295,7 +302,6 @@ void unserialize(lua_State*L,TValue* val,int mt) {
       size_t basepos=lua_tointeger(L,-1);
       lua_pop(L,1);
       GCfunc*lfunc=funcV(&func);
-//printf("LFUP: %p %d\n",lfunc,i+1);
       setframe_pc(frm,proto_bc(funcproto(lfunc))+bcpos);
       TValue*prev=frame_prevl(frm);
       setframe_gc(prev,obj2gco(lfunc),0);
@@ -303,7 +309,6 @@ void unserialize(lua_State*L,TValue* val,int mt) {
       lua_pop(L,1);
     }
     setframe_pc(frm,1);
-    //setframe_gc(frm,obj2gco(0x42),0);
     lua_pop(L,1);
   };break;
   case 5: {
@@ -319,6 +324,12 @@ void unserialize(lua_State*L,TValue* val,int mt) {
     settabV(L,val,tabV(L->top-1));
     lua_pop(L,1);
   };break;
+  case 7: {
+    lua_getfield(L,-1,"data");
+    lua_gettable(L,mt);
+    memcpy(val,L->top-1,sizeof(TValue));
+    lua_pop(L,1);
+  };break;
   default:
     luaL_error(L,"?");
   }
@@ -329,7 +340,17 @@ LJLIB_CF(hdp_unpersist)
 {
   luaL_checktype(L,1,LUA_TTABLE);
   lua_newtable(L);
+  lua_pushvalue(L,-1);
   int mt=lua_gettop(L);
+  if((mt>2)&&(lua_type(L,2)==LUA_TTABLE)) {
+    lua_pushnil(L);
+    while (lua_next(L, 2) != 0) {
+      lua_pushvalue(L,-2);
+      lua_pushvalue(L,-2);
+      lua_settable(L,mt);
+      lua_pop(L, 1);
+    }
+  }
   TValue *ret=L->top;
   incr_top(L);
   lua_pushvalue(L,1);
