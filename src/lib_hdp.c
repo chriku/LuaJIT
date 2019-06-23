@@ -108,6 +108,13 @@ void serialize_gc(lua_State*L,GCobj*val,int mt) {
       lua_pushlstring(L,strdata(val),val->str.len);
       lua_setfield(L,-2,"data");
     } break;
+    case(~LJ_TTAB): {
+      lua_pushliteral(L,"table");
+      lua_setfield(L,-2,"type");
+      settabV(L,L->top,&val->tab);
+      incr_top(L);
+      lua_setfield(L,-2,"data");
+    } break;
     case(~LJ_TPROTO): {
       lua_pushliteral(L,"proto");
       lua_setfield(L,-2,"type");
@@ -198,7 +205,7 @@ void unserialize(lua_State*L,TValue* val,int mt) {
   }
   lua_pop(L,1);
   lua_getfield(L,-1,"type");
-  const char* const args[]={"simple","func","proto","upvalue","thread","string",NULL};
+  const char* const args[]={"simple","func","proto","upvalue","thread","string","table",NULL};
   int opt=luaL_checkoption(L,-1,NULL,args);
   lua_pop(L,1);
   switch(opt) {
@@ -306,6 +313,11 @@ void unserialize(lua_State*L,TValue* val,int mt) {
     GCstr* str=lj_str_new(L,data,size);
     lua_pop(L,1);
     setstrV(L,val,str);
+  };break;
+  case 6: {
+    lua_getfield(L,-1,"data");
+    settabV(L,val,tabV(L->top-1));
+    lua_pop(L,1);
   };break;
   default:
     luaL_error(L,"?");

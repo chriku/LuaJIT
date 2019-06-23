@@ -1,11 +1,10 @@
 require"util"
 local hdp=require"hdp"
-local x=0
+local t={x=0,y=0}
 local function cf()
   local function f()
-    x=x+1
-    local y=x
-    print("X",x)
+    t.x,t.y=t.y,t.x+1
+    print("X",t.x,t.y)
     coroutine.yield()
   end
   while true do
